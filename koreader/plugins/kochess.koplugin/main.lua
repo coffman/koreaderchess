@@ -45,8 +45,8 @@ local function current_dir()
     -- Obtiene la ruta donde está este archivo main.lua
     return debug.getinfo(1, "S").source:sub(2):match("(.*[/\\])")
 end
-local PLUGIN_PATH = current_dir()
-local ICON_PATH = current_dir() .. "icons/"
+local PLUGIN_PATH = "/mnt/onboard/.adds/koreader/plugins/kochess.koplugin/"
+local ICON_PATH = PLUGIN_PATH .. "icons/"
 
 -- Configuration Constants
 local DEFAULT_TIME_MINUTES = 30
@@ -929,22 +929,10 @@ function Kochess:openPromotionDialog(from_sq, to_sq, pawn_color)
 
     -- Define icons for the promotion pieces (matching board.lua's structure)
     local promotion_icons = {
-        [Chess.QUEEN]  = { 
-            [Chess.WHITE] = ICON_PATH .. "wQ.svg", 
-            [Chess.BLACK] = ICON_PATH .. "bQ.svg" 
-        },
-        [Chess.ROOK]   = { 
-            [Chess.WHITE] = ICON_PATH .. "wR.svg", 
-            [Chess.BLACK] = ICON_PATH .. "bR.svg" 
-        },
-        [Chess.BISHOP] = { 
-            [Chess.WHITE] = ICON_PATH .. "wB.svg", 
-            [Chess.BLACK] = ICON_PATH .. "bB.svg" 
-        },
-        [Chess.KNIGHT] = { 
-            [Chess.WHITE] = ICON_PATH .. "wN.svg", 
-            [Chess.BLACK] = ICON_PATH .. "bN.svg" 
-        },
+        [Chess.QUEEN]  = { [Chess.WHITE] = "chess/wQ", [Chess.BLACK] = "chess/bQ" },
+        [Chess.ROOK]   = { [Chess.WHITE] = "chess/wR", [Chess.BLACK] = "chess/bR" },
+        [Chess.BISHOP] = { [Chess.WHITE] = "chess/wB", [Chess.BLACK] = "chess/bB" },
+        [Chess.KNIGHT] = { [Chess.WHITE] = "chess/wN", [Chess.BLACK] = "chess/bN" },
     }
 
     local dialog = InputDialog:new{

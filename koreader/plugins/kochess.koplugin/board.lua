@@ -10,26 +10,18 @@ local Chess = require("chess/src/chess")
 local Device = require("device")
 local Screen = Device.screen
 
--- [Coff] Detección de ruta local para los iconos
-local function current_dir()
-    return debug.getinfo(1, "S").source:sub(2):match("(.*[/\\])")
-end
--- Asumimos que la carpeta "icons" está dentro del plugin
-local ICON_PATH = current_dir() .. "icons/"
-
 local BOARD_SIZE = 8
 local SELECTED_BORDER = 5
 
 local icons = {
-    -- Es importante tener un SVG transparente llamado "empty.svg" para las casillas vacías
-    empty = ICON_PATH .. "empty.svg",
-    
-    [Chess.PAWN]   = { [Chess.WHITE] = ICON_PATH .. "wP.svg", [Chess.BLACK] = ICON_PATH .. "bP.svg" },
-    [Chess.KNIGHT] = { [Chess.WHITE] = ICON_PATH .. "wN.svg", [Chess.BLACK] = ICON_PATH .. "bN.svg" },
-    [Chess.BISHOP] = { [Chess.WHITE] = ICON_PATH .. "wB.svg", [Chess.BLACK] = ICON_PATH .. "bB.svg" },
-    [Chess.ROOK]   = { [Chess.WHITE] = ICON_PATH .. "wR.svg", [Chess.BLACK] = ICON_PATH .. "bR.svg" },
-    [Chess.QUEEN]  = { [Chess.WHITE] = ICON_PATH .. "wQ.svg", [Chess.BLACK] = ICON_PATH .. "bQ.svg" },
-    [Chess.KING]   = { [Chess.WHITE] = ICON_PATH .. "wK.svg", [Chess.BLACK] = ICON_PATH .. "bK.svg" },
+    -- Asegúrate de tener empty.svg en la carpeta chess del sistema
+    empty = "chess/empty", 
+    [Chess.PAWN]   = { [Chess.WHITE] = "chess/wP", [Chess.BLACK] = "chess/bP" },
+    [Chess.KNIGHT] = { [Chess.WHITE] = "chess/wN", [Chess.BLACK] = "chess/bN" },
+    [Chess.BISHOP] = { [Chess.WHITE] = "chess/wB", [Chess.BLACK] = "chess/bB" },
+    [Chess.ROOK]   = { [Chess.WHITE] = "chess/wR", [Chess.BLACK] = "chess/bR" },
+    [Chess.QUEEN]  = { [Chess.WHITE] = "chess/wQ", [Chess.BLACK] = "chess/bQ" },
+    [Chess.KING]   = { [Chess.WHITE] = "chess/wK", [Chess.BLACK] = "chess/bK" },
 }
 
 local Board = FrameContainer:extend{
