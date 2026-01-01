@@ -3,7 +3,8 @@ local ffi = require("ffi")
 local C = ffi.C
 local Logger = require("logger")
 
-ffi.cdef[[
+-- Definiciones FFI protegidas
+pcall(ffi.cdef, [[
     typedef long ssize_t;
     int pipe(int[2]);
     int fork(void);
@@ -19,14 +20,22 @@ ffi.cdef[[
     ssize_t write(int, const void *, size_t);
     char *strerror(int);
     int errno;
-    ]]
+]])
 
-    local SCHED_BATCH = 3
-    local PRIO_PROCESS = 0
-    local POLLIN = 0x001
+-- Definición separada para Poll
+pcall(ffi.cdef, [[
+    struct pollfd {
+        int fd;
+        short events;
+        short revents;
+    };
+    int poll(struct pollfd *fds, unsigned long nfds, int timeout);
+]])
 
+local SCHED_BATCH = 3
+local PRIO_PROCESS = 0
+local POLLIN = 0x001
 local BUF_SZ = 4096
-
 
 local Utils = {}
 
@@ -38,7 +47,6 @@ function Utils.pollingLoop(timeout, action, condition, delayed)
         end
         action()
     end
-
     UIManager:scheduleIn(delayed and timeout or 0, loop)
 end
 
@@ -78,12 +86,17 @@ function Utils.execInSubProcess(cmd, args, with_pipes, double_fork)
     end
 
     local argc = #args
-    local argv = ffi.new("char *[?]", argc + 1)
-    for i = 1, argc do argv[i - 1] = ffi.cast("char *", args[i]) end
-    argv[argc] = nil
+    local argv = ffi.new("char *[?]", argc + 2)
+    argv[0] = ffi.cast("char *", cmd)
+    for i = 1, argc do
+    argv[i] = ffi.cast("char *", args[i])
+    end
+    argv[argc + 1] = nil
+
     C.execvp(cmd, argv)
-    io.stderr:write("execvp(", cmd, ") failed: ", ffi.string(C.strerror(C.errno)), "\n")
-    io.stderr:write("kill", "\n")
+    
+    local err_msg = "execvp failed: " .. ffi.string(C.strerror(C.errno)) .. "\n"
+    C.write(2, err_msg, #err_msg) 
     C._exit(127)
   end
 
@@ -92,54 +105,68 @@ function Utils.execInSubProcess(cmd, args, with_pipes, double_fork)
   return pid, c2p_r, p2c_w
 end
 
+-- LECTOR CON DEBUGGING
 function Utils.reader(fd, action, dbg)
+    local buffer = "" 
+
     local _reader = function()
-        local pollfds = ffi.new("struct pollfd[1]")
+        local struct_ok, pollfds = pcall(ffi.new, "struct pollfd[1]")
+        if not struct_ok then return end
+
         pollfds[0].fd = fd
         pollfds[0].events = POLLIN
 
-        local ret = C.poll(pollfds, 1, 0) -- 0 ms timeout for non-blocking
-        if ret <= 0 or pollfds[0].revents == 0 then
-            return -- No data available
+        local ret = C.poll(pollfds, 1, 0)
+        
+        -- Si hay error en poll
+        if ret < 0 then 
+            Logger.warn("Utils.reader: Poll error")
+            return 
+        end
+        
+        -- Si no hay datos, salimos
+        if ret == 0 or pollfds[0].revents == 0 then return end
+
+        local c_buf = ffi.new("char[?]", BUF_SZ)
+        local n = C.read(fd, c_buf, BUF_SZ - 1)
+        
+        -- [DEBUG] Detectar cierre de conexión
+        if n == 0 then
+            Logger.warn("Utils.reader: EOF detectado (Motor cerrado)")
+            return
+        elseif n < 0 then
+             Logger.warn("Utils.reader: Error de lectura")
+             return
         end
 
-        local buf = ffi.new("char[?]", BUF_SZ)
-        local n = C.read(fd, buf, BUF_SZ - 1)
-        if n <= 0 then return end
+        local chunk = ffi.string(c_buf, n)
+        buffer = buffer .. chunk 
 
-        local chunk = ffi.string(buf, n)
-        local pending = chunk
-        for line in pending:gmatch("(.-)\n") do
-            Logger.dbg((dbg or "") .. "< " .. line)
-            if action then
-                action(line)
+        while true do
+            local line, rest = buffer:match("^(.-)\n(.*)$")
+            if line then
+                if action then action(line) end
+                buffer = rest
+            else
+                break
             end
         end
-
-        local leftover = pending:match("([^\n]*)$") or ""
-        if #leftover > 0 then
-            Logger.dbg((dbg or "") .. " < " .. leftover)
-            if action then
-                action(leftover)
-            end
-        end
-
     end
-
     return _reader
 end
-
 
 function Utils.writer(fd, eol, dbg)
     local _writer = function (cmd)
         local line = cmd .. (eol and "\n" or "")
         Logger.dbg((dbg or "") .. " > " .. line)
         local n = C.write(fd, line, #line)
-        assert(n == #line, "write error")
+        if n ~= #line then
+            Logger.warn("Utils.writer: Error escribiendo en pipe (fd " .. fd .. ")")
+            return false
+        end
+        return true
     end
     return _writer
 end
-
-
 
 return Utils
