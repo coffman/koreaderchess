@@ -35,6 +35,7 @@ local _ = require("gettext")
 -- RUTA ABSOLUTA
 local PLUGIN_PATH = "/mnt/onboard/.adds/koreader/plugins/kochess.koplugin/"
 local UCI_ENGINE_PATH = PLUGIN_PATH .. "engines/stockfish"
+local GAMES_PATH = PLUGIN_PATH .. "Games"
 
 local BACKGROUND_COLOR = Blitbuffer.COLOR_WHITE
 local PGN_LOG_FONT = "smallinfofont"
@@ -300,6 +301,7 @@ end
 function Kochess:openLoadPgnDialog()
     UIManager:show(
         PathChooser:new{
+            path = GAMES_PATH,
             title = _("Load PGN File"),
             select_directory = false,
             onConfirm = function(path)
@@ -381,7 +383,8 @@ end
 
 -- Función principal para abrir el diálogo de guardar
 function Kochess:openSaveDialog()
-    local current_dir = lfs.currentdir()
+    local current_dir = GAMES_PATH
+    --local current_dir = lfs.currentdir()
     local dialog
     local filename_input
 
