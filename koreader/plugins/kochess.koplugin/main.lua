@@ -18,6 +18,12 @@ local ButtonWidget    = require("ui/widget/button")
 local infoMessage = require("ui/widget/infomessage")
 local InputDialog = require("ui/widget/inputdialog")
 local HorizontalGroup = require("ui/widget/horizontalgroup") 
+local HorizontalSpan = require("ui/widget/horizontalspan")
+local VerticalSpan = require("ui/widget/verticalspan")
+local MovableContainer = require("ui/widget/container/movablecontainer")
+local TextWidget = require("ui/widget/textwidget")
+local InputText = require("ui/widget/inputtext")
+local PathChooser = require("ui/widget/pathchooser")
 
 local Chess = require("chess")
 local ChessBoard = require("board")
@@ -291,9 +297,212 @@ function Kochess:createStatusBar()
     }
 end
 
--- Stubs
-function Kochess:openLoadPgnDialog() end
-function Kochess:openSaveDialog() return InputDialog:new{title="Save", buttons={{text="Cancel", callback=function() end}}} end
-function Kochess:openPromotionDialog(f,t,c) local m = self.game.move({from=f, to=t, promotion="q"}); if m then self.board:handleGameMove(m); self:onMoveExecuted(m) end end
+function Kochess:openLoadPgnDialog()
+    UIManager:show(
+        PathChooser:new{
+            title = _("Load PGN File"),
+            select_directory = false,
+            onConfirm = function(path)
+                if not path then return end
+                local fh = io.open(path, "r")
+                if not fh then
+                    UIManager:show(infoMessage:new{
+                        text = _("Error"), message = _("Could not open file:\n") .. path,
+                    })
+                    return
+                end
+                local pgn_data = fh:read("*a")
+                fh:close()
+
+                -- 1. Paramos el motor para no confundirlo
+                self:stopUCI()
+                self.timer:stop()
+                
+                -- 2. Reiniciamos el tablero lógico
+                self.game.reset() 
+                
+                -- 3. Cargamos la partida
+                self.game.load_pgn(pgn_data)
+
+                -- [CAMBIO] Quitamos el rebobinado (undo) para ver el estado final.
+                -- Si prefieres ver el principio, descomenta la siguiente línea:
+                -- while self.game.undo() do end
+                
+                -- 4. Actualizamos todo
+                self.board:updateBoard()
+                self:updatePgnLog()
+                self:updateTimerDisplay()
+                self:updatePlayerDisplay()
+                
+                -- 5. Sincronizamos con Stockfish (Nueva posición)
+                if self.engine and self.engine.state.uciok then
+                    self.engine.send("ucinewgame")
+                    self.engine.send("isready")
+                    -- Opcional: Si quieres que el motor analice ya, podrías lanzar launchUCI aquí
+                end
+
+                UIManager:setDirty(self, "ui")
+                self.timer:start()
+            end,
+        }
+    )
+end
+-- Función auxiliar para procesar el guardado
+function Kochess:handleSaveFile(dialog, filename_input, current_dir)
+    filename_input:onCloseKeyboard() -- Cerrar teclado
+    local dir = current_dir
+    local file = filename_input:getText():gsub("\n$", "") -- Limpiar nombre
+    
+    -- Añadir extensión .pgn si falta
+    if not file:lower():match("%.pgn$") then
+        file = file .. ".pgn"
+    end
+
+    local sep = package.config:sub(1, 1)
+    local fullpath = dir .. sep .. file
+    local pgn_data = self.game.pgn() -- Obtener PGN del juego actual
+
+    local fh, err = io.open(fullpath, "w")
+    if not fh then
+        UIManager:show(infoMessage:new{
+            text = _("Error"), message = _("Could not save file:\n") .. tostring(err),
+        })
+        return
+    end
+
+    fh:write(pgn_data)
+    fh:close()
+
+    UIManager:close(dialog)
+    UIManager:show(infoMessage:new{
+        text = _("Saved"), message = _("Game saved to:\n") .. fullpath
+    })
+end
+
+-- Función principal para abrir el diálogo de guardar
+function Kochess:openSaveDialog()
+    local current_dir = lfs.currentdir()
+    local dialog
+    local filename_input
+
+    local function onSaveConfirm()
+        self:handleSaveFile(dialog, filename_input, current_dir)
+    end
+
+    dialog = InputDialog:new{
+        title = _("Save current game as"),
+        buttons = {
+            {
+                {
+                    text = _("Cancel"),
+                    id = "close",
+                    callback = function()
+                        filename_input:onCloseKeyboard()
+                        UIManager:close(dialog)
+                    end,
+                },
+                {
+                    text = _("Save"),
+                    is_enter_default = true,
+                    callback = onSaveConfirm,
+                },
+            }
+        }
+    }
+
+    local dir_label = TextWidget:new{
+        text = current_dir,
+        face = Font:getFace("smallinfofont"),
+        truncate_left = true,
+        max_width = dialog:getSize().w * 0.8,
+    }
+
+    local browse_button = ButtonWidget:new{
+        text = "...",
+        callback = function()
+            UIManager:show(
+                PathChooser:new{
+                    path = current_dir,
+                    title = _("Select Save Folder"),
+                    select_file = false,
+                    show_files = true,
+                    parent = dialog,
+                    onConfirm = function(chosen)
+                        if chosen and #chosen > 0 then
+                            current_dir = chosen
+                            dir_label:setText(chosen)
+                            UIManager:setDirty(dialog, "ui")
+                        end
+                    end
+                }
+            )
+        end,
+    }
+
+    filename_input = InputText:new{
+        text = "game.pgn",
+        focused = true,
+        parent = dialog,
+        enter_callback = onSaveConfirm,
+    }
+
+    local content = FrameContainer:new{
+        radius = Size.radius.window,
+        bordersize = Size.border.window,
+        background = Blitbuffer.COLOR_WHITE,
+        padding = 0,
+        margin = 0,
+        VerticalGroup:new{
+            align = "left",
+            dialog.title_bar,
+            HorizontalGroup:new{
+                spacing = Size.padding.large,
+                TextWidget:new{ text = _("Folder") .. ":", face = Font:getFace("cfont", 22) },
+                dir_label,
+                HorizontalSpan:new{ width = Size.padding.small },
+                browse_button,
+            },
+            HorizontalGroup:new{
+                spacing = Size.padding.large,
+                TextWidget:new{ text = _("Filename") .. ":", face = Font:getFace("cfont", 22) },
+                filename_input,
+            },
+            CenterContainer:new{
+                dimen = Geometry:new{
+                    w = dialog.title_bar:getSize().w,
+                    h = dialog.button_table:getSize().h,
+                },
+                dialog.button_table
+            },
+        },
+    }
+
+    dialog.movable = MovableContainer:new{ content }
+    dialog[1] = CenterContainer:new{ dimen = Screen:getSize(), dialog.movable }
+    dialog:refocusWidget()
+    return dialog
+end
+
+
+function Kochess:openPromotionDialog(f,t,c)
+    local choices = {q=Chess.QUEEN, r=Chess.ROOK, b=Chess.BISHOP, n=Chess.KNIGHT}
+    local icons_p = { [Chess.QUEEN] = {[Chess.WHITE]="chess/wQ", [Chess.BLACK]="chess/bQ"}, [Chess.ROOK] = {[Chess.WHITE]="chess/wR", [Chess.BLACK]="chess/bR"}, [Chess.BISHOP] = {[Chess.WHITE]="chess/wB", [Chess.BLACK]="chess/bB"}, [Chess.KNIGHT] = {[Chess.WHITE]="chess/wN", [Chess.BLACK]="chess/bN"} }
+    
+    local dialog = InputDialog:new{ title=_("Promote to"), buttons={} }
+    local btns = {}
+    for char, type in pairs(choices) do
+        table.insert(btns, ButtonWidget:new{ icon=icons_p[type][c], icon_width=60, icon_height=60, callback=function() 
+            UIManager:close(dialog)
+            local m = self.game.move({from=f, to=t, promotion=char})
+            if m then self.board:handleGameMove(m); self:onMoveExecuted(m) end
+        end })
+    end
+    
+    local content = FrameContainer:new{ radius=Size.radius.window, bordersize=Size.border.window, background=BACKGROUND_COLOR, padding=Size.padding.large,
+        VerticalGroup:new{ align="center", dialog.title_bar, VerticalSpan:new{width=20}, HorizontalGroup:new{ spacing=20, unpack(btns) } }
+    }
+    dialog.movable = MovableContainer:new{ content }; dialog[1] = CenterContainer:new{ dimen=Screen:getSize(), dialog.movable }
+    UIManager:show(dialog)
+end
 
 return Kochess

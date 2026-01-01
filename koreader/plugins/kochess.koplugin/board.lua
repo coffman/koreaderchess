@@ -1,4 +1,4 @@
--- board.lua (VERSIÓN FINAL: GEOMETRÍA ESTÁTICA)
+-- board.lua (VERSIÓN BLINDADA: REFRESCO GLOBAL)
 local _ = require("gettext")
 local logger = require("logger")
 local Geom = require("ui/geometry")
@@ -9,6 +9,7 @@ local CenterContainer = require("ui/widget/container/centercontainer")
 local Chess = require("chess/src/chess")
 local Device = require("device")
 local Screen = Device.screen
+local UIManager = require("ui/uimanager") -- Necesario para forzar el refresco
 
 local BOARD_SIZE = 8
 local SELECTED_BORDER = 5
@@ -86,7 +87,7 @@ function Board:createSquareButton(file, rank)
         icon_width = self.button_size,
         icon_height = self.button_size,
         
-        -- [CAMBIO CLAVE] El borde SIEMPRE ocupa espacio, para evitar saltos.
+        -- Geometría fija (Anti-Ghosting)
         bordersize = Screen:scaleBySize(SELECTED_BORDER), 
         
         margin = 0,
@@ -106,28 +107,43 @@ function Board:applySquareColors()
                 or Blitbuffer.COLOR_DARK_GRAY
             
             button.frame.background = color
-            -- [CAMBIO] El borde inicial es del mismo color que el fondo (Invisible)
-            button.frame.border_color = color 
+            button.frame.border_color = color
         end
     end
 end
 
+-- ==========================================================
+-- GESTIÓN DE CLICS (Lógica de selección)
+-- ==========================================================
 function Board:handleClick(file, rank)
     local id = Board.toId(file, rank)
     local square = Board.idToPosition(id) 
     logger.dbg("Chess click on square: " .. square)
 
+    local clicked_piece = self.game.get(square)
+    local is_my_piece = clicked_piece and (clicked_piece.color == self.game.turn())
+
     if self.selected then
         if self.selected == square then
+            -- 1. Deseleccionar misma pieza
             self:unmarkSelected(square)
             self.selected = nil
+            
+        elseif is_my_piece then
+            -- 2. Cambiar selección (Apagar vieja -> Encender nueva)
+            logger.dbg("Chess switch selection: " .. self.selected .. " -> " .. square)
+            self:unmarkSelected(self.selected)
+            self.selected = square
+            self:markSelected(square)
+            
         else
+            -- 3. Mover
             self:handleMove(self.selected, square)
         end
     else
-        local piece = self.game.get(square)
-        if piece and piece.color == self.game.turn() then
-            logger.dbg("Chess select piece " .. piece.type .. " at " .. square)
+        -- 4. Seleccionar nueva
+        if is_my_piece then
+            logger.dbg("Chess select new: " .. square)
             self.selected = square
             self:markSelected(square)
         end
@@ -135,7 +151,6 @@ function Board:handleClick(file, rank)
 end
 
 function Board:handleMove(from, to)
-    -- NO deseleccionamos visualmente todavía para evitar parpadeos
     self.selected = nil 
 
     local piece = self.game.get(from) 
@@ -150,16 +165,14 @@ function Board:handleMove(from, to)
     end
 
     if is_pawn_promotion and self.onPromotionNeeded then
-        self:unmarkSelected(from) -- Aquí sí limpiamos porque sale un diálogo
+        self:unmarkSelected(from)
         self.onPromotionNeeded(from, to, piece.color)
     else
         local move = self.game.move{ from = from, to = to }
         if move then
-            -- Éxito: placePiece se encargará de "borrar" el borde al repintar
             self:handleGameMove(move)
         else
-            -- Fallo: Restauramos manualmente
-            logger.dbg(string.format("Illegal move attempted from %s to %s.", from, to), "ERROR")
+            logger.dbg("Illegal move attempted")
             self:unmarkSelected(from)
             self:updateBoard()
         end
@@ -169,7 +182,7 @@ end
 function Board:handleGameMove(move)
     if not move then return end 
 
-    logger.dbg("Applying game move to board visuals: " .. move.san)
+    logger.dbg("Applying game move: " .. move.san)
     self:updateSquare(move.from) 
     self:updateSquare(move.to)   
 
@@ -209,14 +222,20 @@ function Board:handleMoveFlags(move, to)
     end
 end
 
+-- ==========================================================
+-- FUNCIONES VISUALES (REFRESCO GLOBAL)
+-- ==========================================================
 function Board:markSelected(square)
     local id_result = Board.chessToId(square)
     if not id_result then return end
     local button = self.table:getButtonById(id_result)
     
-    -- [CAMBIO] Solo cambiamos el COLOR del borde (a Negro), no el tamaño
+    -- Blanco con borde negro
+    button.frame.background = Blitbuffer.COLOR_WHITE
     button.frame.border_color = Blitbuffer.COLOR_BLACK
-    button:refresh()
+    
+    -- Refresco FUERTE del tablero completo
+    UIManager:setDirty(self, "ui")
 end
 
 function Board:unmarkSelected(square)
@@ -224,9 +243,13 @@ function Board:unmarkSelected(square)
     if not id_result then return end
     local button = self.table:getButtonById(id_result)
     
-    -- [CAMBIO] Restauramos el borde al color del fondo (invisible)
-    button.frame.border_color = Board.positionToColor(square)
-    button:refresh()
+    -- Restaurar color original y borde invisible
+    local original_color = Board.positionToColor(square)
+    button.frame.background = original_color
+    button.frame.border_color = original_color
+    
+    -- Refresco FUERTE
+    UIManager:setDirty(self, "ui")
 end
 
 function Board:placePiece(square, piece, color)
@@ -237,14 +260,13 @@ function Board:placePiece(square, piece, color)
     local button = self.table:getButtonById(id_result)
     button:setIcon(icon, self.button_size)
     
-    local bg_color = Board.positionToColor(square)
-    button.frame.background = bg_color
+    -- Asegurar limpieza de fondo y borde
+    local original_color = Board.positionToColor(square)
+    button.frame.background = original_color
+    button.frame.border_color = original_color
     
-    -- [CAMBIO] Al colocar/mover, aseguramos que el borde sea invisible (reseteo)
-    -- Mantenemos el bordersize fijo que definimos en init.
-    button.frame.border_color = bg_color
-    
-    button:refresh()
+    -- Refresco FUERTE
+    UIManager:setDirty(self, "ui")
 end
 
 function Board:updateSquare(square)
@@ -270,6 +292,8 @@ function Board:updateBoard()
             end
         end
     end
+    -- Aseguramos que tras una actualización masiva, se pinte todo
+    UIManager:setDirty(self, "ui")
 end
 
 -- Utilidades
