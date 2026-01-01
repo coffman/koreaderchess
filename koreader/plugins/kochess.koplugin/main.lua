@@ -114,8 +114,6 @@ function Kochess:initializeEngine()
         Logger.info("KOCHESS: ¡RECIBIDO UCIOK!")
         self:updatePgnLogInitialText()
 
-        -- self.engine.send("setoption name Hash value 8")
-        -- self.engine.send("setoption name Threads value 1")
         -- CONFIGURACIÓN PARA KOBO (RÁPIDA Y LIGERA)
         self.engine.send("setoption name Hash value 4")   -- Mínima memoria
         self.engine.send("setoption name Threads value 1") -- Un solo hilo
@@ -129,7 +127,7 @@ function Kochess:initializeEngine()
 
     self.engine:on("bestmove", function(move_uci)
         self.engine_busy = false
-        
+
         Logger.info("KOCHESS: Motor mueve -> " .. tostring(move_uci))
         if not self.game.is_human(self.game.turn()) then
             self:uciMove(move_uci)
