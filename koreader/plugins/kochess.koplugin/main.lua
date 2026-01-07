@@ -33,8 +33,89 @@ local SettingsWidget = require("settingswidget")
 local _ = require("gettext")
 
 -- RUTA ABSOLUTA
-local PLUGIN_PATH = "/mnt/onboard/.adds/koreader/plugins/kochess.koplugin/"
-local UCI_ENGINE_PATH = PLUGIN_PATH .. "engines/stockfish"
+
+-- local PLUGIN_PATH = "/mnt/onboard/.adds/koreader/plugins/kochess.koplugin/"
+local function getPluginPath()
+    -- ruta real del fichero main.lua
+    local src = debug.getinfo(1, "S").source or ""
+    src = src:gsub("^@", "") -- quitar @ de luajit
+    -- convertir .../kochess.koplugin/main.lua -> .../kochess.koplugin/
+    local path = src:match("^(.*[/\\])main%.lua$")
+    Logger.info("KOCHESS: Plugin path detected: " .. tostring(path))
+    return path
+end
+
+local PLUGIN_PATH = getPluginPath()
+
+local ENGINES_DIR = PLUGIN_PATH .. "engines/"
+
+local function fileExists(path)
+    local ok = lfs.attributes(path, "mode")
+    return ok == "file"
+end
+
+local function chmodX(path)
+    -- En Kindle/Kobo suele hacer falta; en PC normalmente no molesta
+    os.execute('chmod +x "' .. path .. '"')
+end
+
+local function getArch()
+    -- "uname -m" suele estar disponible en Kobo/Kindle/PC (Linux)
+    local p = io.popen("uname -m 2>/dev/null")
+    if not p then return "unknown" end
+    local out = p:read("*a") or ""
+    p:close()
+    out = out:gsub("%s+", "")
+    Logger.info("KOCHESS: Detected architecture: " .. out)
+    return (#out > 0) and out or "unknown"
+end
+
+local function getEnginePath()
+    local arch = getArch()
+
+    -- 1) Preferencia por dispositivo KOReader (más específico)
+    local candidates = {} 
+
+    -- KOBO: armv7l
+    if Device:isKobo() then
+        candidates = {
+            ENGINES_DIR .. "stockfish",
+        }
+    elseif Device:isKindle() then
+        candidates = {
+            ENGINES_DIR .. "stockfish_kindle",
+            ENGINES_DIR .. "stockfish_linux_armv7",
+            ENGINES_DIR .. "stockfish_linux_aarch64",
+        }
+    else
+        -- PC / entorno de pruebas
+        candidates = {
+            ENGINES_DIR .. "stockfish_pc",
+        }
+    end
+
+    -- 2) Fallback por arquitectura (por si el "tipo de Device" no cuadra)
+    if arch == "x86_64" then
+        candidates[#candidates+1] = ENGINES_DIR .. "stockfish_pc"
+    elseif arch:match("^arm") then
+        candidates[#candidates+1] = ENGINES_DIR .. "stockfish"
+    elseif arch == "aarch64" then
+        candidates[#candidates+1] = ENGINES_DIR .. "stockfish_linux_aarch64"
+    end
+
+        -- 3) Seleccionar el primero que exista
+    for _, path in ipairs(candidates) do
+        if fileExists(path) then
+            chmodX(path)
+            return path
+        end
+    end
+
+    return nil
+end
+
+local UCI_ENGINE_PATH = getEnginePath()
+-- local UCI_ENGINE_PATH = PLUGIN_PATH .. "engines/stockfish"
 local GAMES_PATH = PLUGIN_PATH .. "Games"
 
 local BACKGROUND_COLOR = Blitbuffer.COLOR_WHITE
@@ -94,7 +175,16 @@ end
 -- ARRANQUE DEL MOTOR (MÉTODO DIRECTO - EL QUE FUNCIONA)
 -- ==========================================================
 function Kochess:initializeEngine()
-    Logger.info("KOCHESS: Arrancando Stockfish 11 (Directo + Argv0)...")
+
+    if not UCI_ENGINE_PATH then
+        Logger.info("KOCHESS: No Stockfish engine binary found in " .. ENGINES_DIR)
+        UIManager:show(infoMessage:new{
+            text = "Error",
+            message = "No se encontró un binario de Stockfish.\nCopia el motor en:\n" .. ENGINES_DIR
+        })
+        return
+    end
+    Logger.info("KOCHESS: Arrancando Stockfish ..." .. UCI_ENGINE_PATH)
 
     os.execute("chmod +x " .. UCI_ENGINE_PATH)
 
@@ -104,7 +194,7 @@ function Kochess:initializeEngine()
 
     
     if not self.engine then
-        Logger.error("KOCHESS: Fallo al crear proceso.")
+        Logger.info("KOCHESS: Fallo al crear proceso.")
         UIManager:show(infoMessage:new{text="Error", message="Motor no arranca."})
         return
     end
