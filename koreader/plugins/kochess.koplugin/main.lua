@@ -8,6 +8,7 @@ local Font = require("ui/font")
 local Size = require("ui/size")
 local Geometry = require("ui/geometry")
 local Logger = require("logger")
+local DataStorage = require("datastorage")
 
 local CenterContainer = require("ui/widget/container/centercontainer")
 local FrameContainer = require("ui/widget/container/framecontainer")
@@ -146,11 +147,32 @@ function Kochess:init()
     self:installIconsIfNeeded()
 end
 
+local function mkdir_p(path)
+    local sep = package.config:sub(1,1)
+    local cur = ""
+    for part in path:gmatch("[^" .. sep .. "]+") do
+        cur = (cur == "") and part or (cur .. sep .. part)
+        if lfs.attributes(cur, "mode") ~= "directory" then
+            lfs.mkdir(cur)
+        end
+    end
+end
+
 function Kochess:installIconsIfNeeded()
-    local dest_dir = "/mnt/onboard/.adds/koreader/resources/icons/src/kochess"
+    -- Directorio de datos real de KOReader (PC / Kobo / Kindle)
+    local data_dir = DataStorage:getDataDir()
+    local dest_dir = data_dir .. "/resources/icons/chess"
+    local src_dir  = PLUGIN_PATH .. "icons"
+
+    Logger.info("KOCHESS: Installing icons")
+    Logger.info("KOCHESS: data_dir  = " .. tostring(data_dir))
+    Logger.info("KOCHESS: src_dir   = " .. tostring(src_dir))
+    Logger.info("KOCHESS: dest_dir  = " .. tostring(dest_dir))
+
     if lfs.attributes(dest_dir, "mode") ~= "directory" then
-        local src_dir = PLUGIN_PATH .. "icons"
-        os.execute('cp -r "' .. src_dir .. '" "' .. dest_dir .. '"')
+        -- Asegurar jerarquía hasta .../resources/icons/chess
+        mkdir_p(data_dir .. "/resources/icons/chess")
+        os.execute('cp -r "' .. src_dir .. '/." "' .. dest_dir .. '"')
     end
 end
 
