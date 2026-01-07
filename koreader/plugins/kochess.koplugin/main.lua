@@ -198,6 +198,8 @@ end
 -- ==========================================================
 function Kochess:initializeEngine()
 
+    local defaultSkill = 10
+
     if not UCI_ENGINE_PATH then
         Logger.info("KOCHESS: No Stockfish engine binary found in " .. ENGINES_DIR)
         UIManager:show(infoMessage:new{
@@ -236,9 +238,10 @@ function Kochess:initializeEngine()
         -- CONFIGURACIÓN PARA KOBO (RÁPIDA Y LIGERA)
         self.engine.send("setoption name Hash value 4")   -- Mínima memoria
         self.engine.send("setoption name Threads value 1") -- Un solo hilo
-        self.engine.send("setoption name Skill Level value 5") -- Nivel bajo (juega más rápido y humano)
+        self.engine.send("setoption name Skill Level value " .. defaultSkill)
         self.engine.send("setoption name Slow Mover value 10") -- Reduce el "fanatismo" por el tiempo
-        
+        self.current_skill = defaultSkill
+
         self.engine:ucinewgame()
         self.engine.send("isready")
         UIManager:setDirty(self, "ui")

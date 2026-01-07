@@ -7,6 +7,8 @@ local Blitbuffer = require("ffi/blitbuffer")
 local Font = require("ui/font")
 local Geometry = require("ui/geometry")
 local Size = require("ui/size")
+local Logger = require("logger")
+
 
 local CenterContainer = require("ui/widget/container/centercontainer")
 local RadioButtonTable = require("ui/widget/radiobuttontable")
@@ -73,8 +75,15 @@ function SettingsWidget:initializeState()
     self.min_incr_sec = 0
     self.max_incr_sec = 60
 
-    local skillOpt = self.engine.state.options["Skill Level"]
-    local currentSkill = (skillOpt and tonumber(skillOpt.value)) or 5
+    local currentSkill = (self.parent and tonumber(self.parent.current_skill)) or nil
+
+    -- 2) si no existe, caemos a lo que diga el wrapper (ojo: suele ser el default=20)
+    if not currentSkill then
+        local skillOpt = self.engine.state.options["Skill Level"]
+        Logger.info("Engine option Skill Level (default): " .. (skillOpt and tostring(skillOpt.value) or "nil"))
+        currentSkill = (skillOpt and tonumber(skillOpt.value)) or 10
+    end
+    currentSkill = math.max(0, math.min(20, currentSkill))
 
     -- Current changes snapshot
     self.changes = {
