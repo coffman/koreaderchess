@@ -63,11 +63,9 @@ end
 --  Initialize the local `changes` table from current engine/timer/game state
 -- ============================================================================
 function SettingsWidget:initializeState()
-    -- ELO bounds
-    local uciEloOpt = self.engine.state.options["UCI_Elo"]
-    self.min_elo      = uciEloOpt and uciEloOpt.min or 800
-    self.max_elo      = uciEloOpt and uciEloOpt.max or 2500
-    self.elo_step     = 50
+    -- Skill bounds (0..20)
+    self.min_skill = 0
+    self.max_skill = 20
 
     -- Time bounds
     self.min_base_min = 1
@@ -75,13 +73,16 @@ function SettingsWidget:initializeState()
     self.min_incr_sec = 0
     self.max_incr_sec = 60
 
+    local skillOpt = self.engine.state.options["Skill Level"]
+    local currentSkill = (skillOpt and tonumber(skillOpt.value)) or 5
+
     -- Current changes snapshot
     self.changes = {
         human_choice = {
             [Chess.WHITE] = self.game.is_human(Chess.WHITE),
             [Chess.BLACK] = self.game.is_human(Chess.BLACK),
         },
-        elo_strength = (uciEloOpt and uciEloOpt.value) or 1500,
+        skill_level = currentSkill,
         time_control = {
             [Chess.WHITE] = {
                 base_minutes  = self.timer.base[Chess.WHITE] / 60,
@@ -111,7 +112,8 @@ function SettingsWidget:show()
 
     -- Build the UI groups
     self:buildPlayerTypeGroup()
-    self:buildEloGroup()
+    -- self:buildEloGroup()
+    self:buildSkillGroup()
 
     self:buildTimeGroups()
     self:assembleContent()
@@ -171,6 +173,73 @@ function SettingsWidget:buildPlayerTypeGroup()
         VerticalGroup:new{ spacing=Size.padding.small,
                            self.playerTypeGroupWhite,
                            self.playerTypeGroupBlack }
+    }
+end
+
+-- ============================================================================
+--  SKILL LEVEL GROUP
+-- ============================================================================
+function SettingsWidget:buildSkillGroup()
+    local function approxElo(skill)
+        -- Aproximación orientativa (no es exacta). Ajusta si quieres.
+        local map = {
+            [0]=700, 800, 900, 1000, 1100,
+            1200, 1300, 1400, 1500, 1600,
+            1700, 1800, 1900, 2000, 2100,
+            2200, 2300, 2400, 2500, 2600, 2700
+        }
+        return map[skill] or 1350
+    end
+
+    local function label()
+        local s = tonumber(self.changes.skill_level) or 5
+        return string.format("%d (≈%d)", s, approxElo(s))
+    end
+
+    local tv = TextWidget:new{
+        text   = label(),
+        face   = Font:getFace("cfont",22),
+        halign = "center",
+        width  = 140
+    }
+    self.skillValueText = tv
+
+    local function updateDisplay()
+        tv:setText(label())
+        UIManager:setDirty(self, "ui")
+    end
+
+    local function onClick(delta)
+        self.changes.skill_level = math.max(
+            self.min_skill,
+            math.min(self.max_skill, (tonumber(self.changes.skill_level) or 5) + delta)
+        )
+        updateDisplay()
+        self:markDirty()
+    end
+
+    local decBtn = ButtonWidget:new{
+        text     = "- 1",
+        callback = function() onClick(-1) end,
+        face     = Font:getFace("cfont",20),
+        padding  = Size.padding.small,
+        radius   = Size.radius.button,
+        parent   = self.dialog,
+    }
+    local incBtn = ButtonWidget:new{
+        text     = "+ 1",
+        callback = function() onClick(1) end,
+        face     = Font:getFace("cfont",20),
+        padding  = Size.padding.small,
+        radius   = Size.radius.button,
+        parent   = self.dialog,
+    }
+
+    local ctrl = HorizontalGroup:new{ spacing=Size.padding.small, decBtn, tv, incBtn }
+    self.skillSettingsGroup = HorizontalGroup:new{
+        width = self.dialog.element_width,
+        TextWidget:new{ text=_("Engine Skill")..":", face=Font:getFace("cfont",22) },
+        ctrl
     }
 end
 
@@ -332,10 +401,10 @@ function SettingsWidget:assembleContent()
 
             self.engine.state.uciok and VerticalSpan:new{ width = Size.padding.large } or empty,
 
-            -- ELO only if engine is ready
+            -- Skill only if engine is ready
             self.engine.state.uciok and CenterContainer:new{
-                dimen = Geometry:new{ w=D.width, h=self.eloSettingsGroup:getSize().h },
-                self.eloSettingsGroup
+                dimen = Geometry:new{ w=D.width, h=self.skillSettingsGroup:getSize().h },
+                self.skillSettingsGroup
             } or VerticalSpan:new{ width = 0 },
 
             self.engine.state.uciok and VerticalSpan:new{ width = Size.padding.large } or empty,
@@ -368,10 +437,23 @@ end
 function SettingsWidget:applyAndClose()
     local s = self.changes
 
-    -- 1) ELO
-    local opt = self.engine.state.options["UCI_Elo"]
-    if opt and tonumber(opt.value) ~= s.elo_strength then
-        self.engine:setOption("UCI_Elo", tostring(s.elo_strength))
+    -- 1) Skill Level (0..20)
+    local optSkill = self.engine.state.options["Skill Level"]
+    local v = tonumber(s.skill_level) or 5
+    v = math.max(0, math.min(20, v))
+
+    if optSkill and tonumber(optSkill.value) ~= v then
+        self.engine:setOption("Skill Level", tostring(v))
+    end
+
+    -- Aseguramos que no esté activo el modo ELO limitado
+    local optLimit = self.engine.state.options["UCI_LimitStrength"]
+    if optLimit and tostring(optLimit.value) ~= "false" then
+        self.engine:setOption("UCI_LimitStrength", "false")
+    end
+
+    if self.engine and self.engine.state.uciok then
+        self.engine.send("isready")
     end
 
     -- 2) Time controls
