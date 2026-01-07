@@ -236,10 +236,12 @@ function Kochess:initializeEngine()
         self:updatePgnLogInitialText()
 
         -- CONFIGURACIÓN PARA KOBO (RÁPIDA Y LIGERA)
-        self.engine.send("setoption name Hash value 4")   -- Mínima memoria
+        self.engine.send("setoption name Hash value 8")   -- Mínima memoria
         self.engine.send("setoption name Threads value 1") -- Un solo hilo
         self.engine.send("setoption name Skill Level value " .. defaultSkill)
-        self.engine.send("setoption name Slow Mover value 10") -- Reduce el "fanatismo" por el tiempo
+        self.engine.send("setoption name Move Overhead value 150")
+        self.engine.send("setoption name Ponder value false")
+        self.engine.send("setoption name Slow Mover value 90")
         self.current_skill = defaultSkill
 
         self.engine:ucinewgame()
@@ -338,6 +340,8 @@ function Kochess:uciMove(str)
 end
 
 function Kochess:launchUCI()
+
+    local CAP_MS = 20000 -- 20 segundos
     -- Evitar reentradas: si el motor ya está pensando, no relanzar go
     if self.engine_busy then return end
     self.engine_busy = true
@@ -350,9 +354,14 @@ function Kochess:launchUCI()
     -- Si tu wrapper ya asume startpos, basta con moves=...
     self.engine:position({ moves = table.concat(moves, " ") })
 
-    Logger.info("KOCHESS: Enviando GO con límite de 10 segundos...")
+    
     self.engine:go({
-        movetime = 10000 -- 10000 ms = 10 segundos por jugada
+        wtime = self.timer:getRemainingTime(Chess.WHITE) * 1000,
+        btime = self.timer:getRemainingTime(Chess.BLACK) * 1000,
+        winc  = self.timer.increment[Chess.WHITE] * 1000,
+        binc  = self.timer.increment[Chess.BLACK] * 1000,
+        movestogo = 30, -- opcional, ayuda a distribuir tiempo
+        movetime = CAP_MS,
     })
     --self.engine:go({
     --    wtime = self.timer:getRemainingTime(Chess.WHITE) * 1000,

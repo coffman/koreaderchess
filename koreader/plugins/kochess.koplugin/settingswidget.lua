@@ -451,10 +451,13 @@ function SettingsWidget:applyAndClose()
     local v = tonumber(s.skill_level) or 5
     v = math.max(0, math.min(20, v))
 
-    if optSkill and tonumber(optSkill.value) ~= v then
+    if optSkill then
         self.engine:setOption("Skill Level", tostring(v))
     end
 
+    if self.parent then
+        self.parent.current_skill = v
+    end
     -- Aseguramos que no esté activo el modo ELO limitado
     local optLimit = self.engine.state.options["UCI_LimitStrength"]
     if optLimit and tostring(optLimit.value) ~= "false" then
