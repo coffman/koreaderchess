@@ -25,6 +25,8 @@ local MovableContainer = require("ui/widget/container/movablecontainer")
 local TextWidget = require("ui/widget/textwidget")
 local InputText = require("ui/widget/inputtext")
 local PathChooser = require("ui/widget/pathchooser")
+local LeftContainer = require("ui/widget/container/leftcontainer")
+
 
 local Chess = require("chess")
 local ChessBoard = require("board")
@@ -199,6 +201,7 @@ end
 function Kochess:initializeEngine()
 
     local defaultSkill = 10
+    self.last_cp = nil
 
     if not UCI_ENGINE_PATH then
         Logger.info("KOCHESS: No Stockfish engine binary found in " .. ENGINES_DIR)
@@ -223,11 +226,23 @@ function Kochess:initializeEngine()
         return
     end
 
-    -- CHIVATO
     self.engine:on("read", function(data)
-        if data then 
-            local clean = data:gsub("\n", " "):gsub("\r", "")
-            Logger.info("RAW ENGINE: " .. clean)
+        if data then
+            local clean = data:gsub("\r", "")
+            Logger.info("RAW ENGINE: " .. clean:gsub("\n", " "))
+
+            -- Parseo robusto del último score cp (multipv 1 si viene)
+            for line in tostring(data):gmatch("[^\r\n]+") do
+                if line:match("^info ") then
+                    local mp = tonumber(line:match(" multipv (%d+)")) or 1
+                    if mp == 1 then
+                        local cp = line:match(" score cp (-?%d+)")
+                        if cp then
+                            self.last_cp = tonumber(cp)
+                        end
+                    end
+                end
+            end
         end
     end)
 
@@ -251,6 +266,7 @@ function Kochess:initializeEngine()
 
     self.engine:on("bestmove", function(move_uci)
         self.engine_busy = false
+        self:updateEvalLine()
 
         Logger.info("KOCHESS: Motor mueve -> " .. tostring(move_uci))
         if not self.game.is_human(self.game.turn()) then
@@ -289,8 +305,34 @@ function Kochess:buildUILayout()
     local log_h = math.max(100, self.full_height - title_bar:getSize().h - board_h - status_bar:getSize().h)
     local toolbar_width = math.floor(math.min(log_h / 4 + 16, self.full_width / 3))
     
-    self.pgn_log = self:createPgnLogWidget(_("Welcome!"), self.full_width - toolbar_width, log_h)
+    local eval_h = 22  -- altura de una línea (ajusta si quieres)
+    local pgn_w  = self.full_width - toolbar_width
+
+    self.eval_line = TextWidget:new{
+        text = "Evaluación: --",
+        face = Font:getFace("smallinfofont", 14),
+        halign = "left",
+        padding = 0,
+        width  = pgn_w,       
+    }
+
+    local eval_line_left = LeftContainer:new{
+        dimen = Geometry:new{ w = pgn_w, h = eval_h + 5 },
+        self.eval_line,
+    }
     
+
+    self:updateEvalLine()
+
+    self.pgn_log = self:createPgnLogWidget(_("Welcome!"), pgn_w, log_h - eval_h)
+
+    local pgn_with_eval = VerticalGroup:new{
+        width  = pgn_w,
+        height = log_h,
+        self.pgn_log,
+        eval_line_left,   -- 👈 aquí, no pongas self.eval_line directamente
+    }
+
     local toolbar = VerticalGroup:new{
         width = toolbar_width, height = log_h, padding = TOOLBAR_PADDING,
         self:createToolbarButton("chevron.left", toolbar_width-8, 40, function() self:handleUndoMove(false) end),
@@ -302,7 +344,7 @@ function Kochess:buildUILayout()
     local main_vgroup = VerticalGroup:new{
         align = "center", width = self.full_width, height = self.full_height,
         title_bar, self.board,
-        FrameContainer:new{ background = BACKGROUND_COLOR, padding=0, HorizontalGroup:new{ height=log_h, toolbar, self.pgn_log } },
+        FrameContainer:new{ background = BACKGROUND_COLOR, padding=0, HorizontalGroup:new{ height=log_h, toolbar, pgn_with_eval } },
         status_bar,
     }
     self.status_bar = status_bar 
@@ -315,13 +357,38 @@ function Kochess:updatePgnLogInitialText()
     if self.pgn_log then self.pgn_log:setText(text); UIManager:setDirty(self, "ui") end
 end
 
+local function formatEval(cp)
+    if cp == nil then return "Evaluación: --" end
+
+    local v = cp / 100.0
+    local abs = math.abs(v)
+
+    local tag
+    if abs < 0.30 then
+        tag = "(posición igualada)"
+    elseif abs < 1.00 then
+        tag = (v > 0) and "(ligera ventaja blanca)" or "(ligera ventaja negra)"
+    else
+        tag = (v > 0) and "(ventaja clara blanca)" or "(ventaja clara negra)"
+    end
+
+    return string.format("Evaluación: %+.2f %s", v, tag)
+end
+
+function Kochess:updateEvalLine()
+    if self.eval_line then
+        self.eval_line:setText(formatEval(self.last_cp))
+        UIManager:setDirty(self, "ui")
+    end
+end
+
 function Kochess:createPgnLogWidget(txt, w, h) return TextBoxWidget:new{ use_xtext=true, text=txt, face=Font:getFace(self.notation_font, self.notation_size), scroll=true, width=w, height=h, dialog=self } end
 function Kochess:createToolbarButton(icon, w, h, cb) return ButtonWidget:new{ icon=icon, icon_width=w, icon_height=h, callback=cb } end
 function Kochess:handleUndoMove(all) self:stopUCI(); self.timer:stop(); if all then while self.game.undo() do end else self.game.undo() end; self.board:updateBoard(); self:updatePgnLog(); UIManager:setDirty(self, "ui"); self.timer:start() end
 function Kochess:handleRedoMove(all) self:stopUCI(); self.timer:stop(); if all then while self.game.redo() do end else self.game.redo() end; self.board:updateBoard(); self:updatePgnLog(); UIManager:setDirty(self, "ui"); self.timer:start() end
 
 function Kochess:onMoveExecuted(move)
-    Logger.info("KOCHESS: Move " .. move.san)
+    Logger.info("KOCHESS: Player Move " .. move.san)
     self.running = true
     self:updatePgnLog()
     self:launchNextMove()
@@ -350,7 +417,7 @@ function Kochess:launchUCI()
     for _, m in ipairs(self.game.history({ verbose = true })) do
         moves[#moves + 1] = m.from .. m.to .. (m.promotion or "")
     end
-
+    
     -- Si tu wrapper ya asume startpos, basta con moves=...
     self.engine:position({ moves = table.concat(moves, " ") })
 
@@ -363,10 +430,7 @@ function Kochess:launchUCI()
         movestogo = 30, -- opcional, ayuda a distribuir tiempo
         movetime = CAP_MS,
     })
-    --self.engine:go({
-    --    wtime = self.timer:getRemainingTime(Chess.WHITE) * 1000,
-    --    btime = self.timer:getRemainingTime(Chess.BLACK) * 1000,
-    --})
+
 end
 
 
