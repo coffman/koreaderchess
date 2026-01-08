@@ -9,6 +9,7 @@ local Size = require("ui/size")
 local Geometry = require("ui/geometry")
 local Logger = require("logger")
 local DataStorage = require("datastorage")
+local json = require("json")
 
 local CenterContainer = require("ui/widget/container/centercontainer")
 local FrameContainer = require("ui/widget/container/framecontainer")
@@ -188,11 +189,40 @@ function Kochess:startGame()
     self:initializeGameLogic()
     self:initializeEngine() 
     self:initializeBoard()
+    self:loadOpenings()
     self:buildUILayout()
     self:updateTimerDisplay()
     self:updatePlayerDisplay()
     self.board:updateBoard() 
     UIManager:show(self) 
+end
+
+-- ==========================================================
+-- CARGAMOS LAS APERTURAS
+-- ==========================================================
+function Kochess:loadOpenings()
+    if self.openings then return end  -- cache
+
+    self.openings = {}
+    local path = PLUGIN_PATH .. "data/aperturas.json"
+
+    local f = io.open(path, "r")
+    if not f then
+        Logger.info("KOCHESS: No se pudo abrir aperturas.json")
+        return
+    end
+
+    local content = f:read("*all")
+    f:close()
+
+    local ok, data = pcall(json.decode, content)
+    if not ok or type(data) ~= "table" then
+        Logger.info("KOCHESS: aperturas.json inválido")
+        return
+    end
+
+    self.openings = data
+    Logger.info("KOCHESS: Aperturas cargadas: " .. tostring(#self.openings))
 end
 
 -- ==========================================================
@@ -266,6 +296,7 @@ function Kochess:initializeEngine()
 
     self.engine:on("bestmove", function(move_uci)
         self.engine_busy = false
+
         self:updateEvalLine()
 
         Logger.info("KOCHESS: Motor mueve -> " .. tostring(move_uci))
@@ -309,7 +340,7 @@ function Kochess:buildUILayout()
     local pgn_w  = self.full_width - toolbar_width
 
     self.eval_line = TextWidget:new{
-        text = "Evaluación: --",
+        text = "Eval: --",
         face = Font:getFace("smallinfofont", 14),
         halign = "left",
         padding = 0,
@@ -357,23 +388,73 @@ function Kochess:updatePgnLogInitialText()
     if self.pgn_log then self.pgn_log:setText(text); UIManager:setDirty(self, "ui") end
 end
 
+-- ==========================================================
+-- DETECTA LAS APERTURAS
+-- ==========================================================
+function Kochess:detectOpening()
+    if not self.openings then return nil end
+
+    -- Intento 1: SAN (lo que necesitas para comparar con "e4 e6")
+    local hist = self.game.history and self.game:history() or nil
+    if type(hist) ~= "table" or #hist == 0 then
+        -- fallback: por si tu API es game.history(...)
+        hist = self.game.history and self.game.history() or {}
+    end
+
+    local moves = {}
+    for i, san in ipairs(hist) do
+        if type(san) == "string" and san ~= "" then
+            -- normaliza SAN (quita + # ! ? por si acaso)
+            san = san:gsub("[+#?!]", "")
+            moves[#moves + 1] = san
+        end
+    end
+
+    local played = table.concat(moves, " ")
+
+    -- Debug útil
+    Logger.info("KOCHESS: played SAN = " .. played)
+
+    local best = nil
+    for _, o in ipairs(self.openings) do
+        if played:find(o.moves, 1, true) == 1 then
+            if not best or #o.moves > #best.moves then
+                best = o
+            end
+        end
+    end
+
+    return best
+end
+
+
+
 local function formatEval(cp)
-    if cp == nil then return "Evaluación: --" end
+    if cp == nil then
+        return "Eval: --"
+    end
 
     local v = cp / 100.0
     local abs = math.abs(v)
 
     local tag
-    if abs < 0.30 then
-        tag = "(posición igualada)"
+    if abs < 0.20 then
+        tag = "(roughly equal)"
+    elseif abs < 0.50 then
+        tag = (v > 0) and "(slight advantage for White)" or "(slight advantage for Black)"
     elseif abs < 1.00 then
-        tag = (v > 0) and "(ligera ventaja blanca)" or "(ligera ventaja negra)"
+        tag = (v > 0) and "(small advantage for White)" or "(small advantage for Black)"
+    elseif abs < 2.00 then
+        tag = (v > 0) and "(clear advantage for White)" or "(clear advantage for Black)"
+    elseif abs < 4.00 then
+        tag = (v > 0) and "(winning advantage for White)" or "(winning advantage for Black)"
     else
-        tag = (v > 0) and "(ventaja clara blanca)" or "(ventaja clara negra)"
+        tag = (v > 0) and "(decisive advantage for White)" or "(decisive advantage for Black)"
     end
 
-    return string.format("Evaluación: %+.2f %s", v, tag)
+    return string.format("Eval: %+.2f %s", v, tag)
 end
+
 
 function Kochess:updateEvalLine()
     if self.eval_line then
@@ -388,12 +469,34 @@ function Kochess:handleUndoMove(all) self:stopUCI(); self.timer:stop(); if all t
 function Kochess:handleRedoMove(all) self:stopUCI(); self.timer:stop(); if all then while self.game.redo() do end else self.game.redo() end; self.board:updateBoard(); self:updatePgnLog(); UIManager:setDirty(self, "ui"); self.timer:start() end
 
 function Kochess:onMoveExecuted(move)
-    Logger.info("KOCHESS: Player Move " .. move.san)
+    Logger.info("KOCHESS: Player Move " .. tostring(move.san))
     self.running = true
+
+    -- 1) Actualiza historial/PGN (aquí ya se ha aplicado la jugada al game)
     self:updatePgnLog()
+
+    -- 2) Detecta apertura AHORA (historial ya incluye la jugada del humano o del motor)
+    local opening = self:detectOpening()
+    Logger.info("KOCHESS: Opening detected: " .. (opening and opening.name or "none"))
+
+    -- 3) Pinta línea (si hay apertura, la mostramos; la eval se añade si existe)
+    if self.eval_line then
+        if opening then
+            if self.last_cp ~= nil then
+                self.eval_line:setText(string.format("%s (%s) · %s", opening.name, opening.eco, formatEval(self.last_cp)))
+            else
+                self.eval_line:setText(string.format("%s (%s)", opening.name, opening.eco))
+            end
+        else
+            self:updateEvalLine()
+        end
+    end
+
+    -- 4) Continúa flujo normal
     self:launchNextMove()
     UIManager:setDirty(self, "ui")
 end
+
 
 function Kochess:launchNextMove()
     self.timer:switchPlayer()
