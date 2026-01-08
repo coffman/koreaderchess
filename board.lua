@@ -120,6 +120,17 @@ function Board:handleClick(file, rank)
     local square = Board.idToPosition(id) 
     logger.dbg("Chess click on square: " .. square)
 
+    -- Block interaction if not human
+    if self.game and self.game.is_human and (not self.game.is_human(self.game.turn())) then
+        logger.dbg("Chess: ignoring input, engine turn (" .. tostring(self.game.turn()) .. ")")
+        -- Si había selección, la quitamos para evitar estados raros
+        if self.selected then
+            self:unmarkSelected(self.selected)
+            self.selected = nil
+        end
+        return
+    end
+
     local clicked_piece = self.game.get(square)
     local is_my_piece = clicked_piece and (clicked_piece.color == self.game.turn())
 
