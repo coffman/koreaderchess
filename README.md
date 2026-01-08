@@ -7,7 +7,12 @@ Kochess is a simple yet functional chess application designed for your device. I
 ## Demo
 
 See the demo video in the latest GitHub Release.
-https://github.com/coffman/koreaderchess/releases/download/v0.1.0/Kochess.4.Koreader.by.Coffman.mp4
+
+
+
+https://github.com/user-attachments/assets/2d4b052f-0c1b-4174-9478-ad99800003a5
+
+
 
 ## Getting Started
 
