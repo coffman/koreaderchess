@@ -20,12 +20,9 @@ Upon launching, a new game will begin automatically with the chess engine initia
 To install Kochess, follow these steps:
 
 1.    Plugin Installation: Copy the Kochess plugin directory into your KOReader installation. The plugin should be located at: `koreader/plugins/kochess.koplugin` (Replace koreader with your base KOReader installation directory).
-
-2.    The icons will copy automatically to the folder: `koreader/resources/icons/chess`
-
+2.    The icons will be copied automatically to the folder: `koreader/resources/icons/chess`
 3.    Games: Your saved game files (PGN) can be stored in any convenient location on your device, Default to Games folder in the plugin 
-
-4.    Engine: Chess engine is compiled and installed at  `koreader/plugins/kochess.koplugin/engines`.
+4.    Engine: Chess engine is compiled and installed at  `koreader/plugins/kochess.koplugin/engines`. Currently only for Kobo & reMarkable
 
 ---
 
@@ -39,6 +36,7 @@ The Kochess interface is designed for clarity and ease of use. It consists of th
     * **PGN Log:** Shows the move history in Standard Algebraic Notation (SAN), along with game information and engine status.
     * **Toolbar:** Contains buttons for navigating through moves and managing game files.
 * **Status Bar (Bottom):** Displays current game information, including player timers and who is currently playing (Human or Engine).
+* **Bottom:** Show information about the opening and evaluation of the game
 
 ---
 
@@ -105,7 +103,9 @@ The toolbar, located next to the PGN log, provides several useful functions:
 
 ## Settings
 
-While the code snippet doesn't detail a full settings menu, it references a `SettingsWidget`. It's likely that future versions or a more complete implementation will include options to configure:
+While the code snippet doesn't detail a full settings menu, it references a `SettingsWidget`. 
+
+Cuirrently it includes options to configure:
 
 * **Player type:** Choosing color to be a human or engine player (if available)
 * **Engine Difficulty:** Adjusting the strength of the UCI engine (e.g., Stockfish).
