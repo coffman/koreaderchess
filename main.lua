@@ -186,6 +186,10 @@ function Kochess:addToMainMenu(menu_items)
 end
 
 function Kochess:startGame()
+    self.last_cp = nil
+    self.last_mate = nil
+    self.eval_turn = nil
+
     self:initializeGameLogic()
     self:initializeEngine() 
     self:initializeBoard()
@@ -267,8 +271,18 @@ function Kochess:initializeEngine()
                     local mp = tonumber(line:match(" multipv (%d+)")) or 1
                     if mp == 1 then
                         local cp = line:match(" score cp (-?%d+)")
-                        if cp then
-                            self.last_cp = tonumber(cp)
+                        local mate = line:match(" score mate (-?%d+)")
+                        if mate then
+                            local mv = tonumber(mate)
+                            if self.eval_turn == Chess.BLACK then mv = -mv end
+                            self.last_mate = mv
+                            self.last_cp = nil
+                            Logger.info("RAW ENGINE: Mate detected: " .. tostring(mv))
+                        elseif cp then
+                            local cpv = tonumber(cp)
+                            if self.eval_turn == Chess.BLACK then cpv = -cpv end
+                            self.last_cp = cpv
+                            self.last_mate = nil
                         end
                     end
                 end
@@ -296,8 +310,6 @@ function Kochess:initializeEngine()
 
     self.engine:on("bestmove", function(move_uci)
         self.engine_busy = false
-
-        self:updateEvalLine()
 
         Logger.info("KOCHESS: Motor mueve -> " .. tostring(move_uci))
         if not self.game.is_human(self.game.turn()) then
@@ -429,12 +441,24 @@ end
 
 
 
-local function formatEval(cp)
-    if cp == nil then
-        return "Eval: --"
+local function formatEval(self)
+    local mate = self.last_mate
+    if mate ~= nil then
+        local m = tonumber(mate) or 0
+        if m == 0 then
+            return "eval: # (checkmate)"
+        end
+        local side  = (m > 0) and "White" or "Black"
+        local moves = math.max(1, math.ceil(math.abs(m) / 2))
+        return string.format("eval: Mate in %d (%s)", moves, side)
     end
 
-    local v = cp / 100.0
+    local cp = self.last_cp
+    if cp == nil then
+        return "eval: --"
+    end
+
+    local v = (tonumber(cp) or 0) / 100.0
     local abs = math.abs(v)
 
     local tag
@@ -452,13 +476,19 @@ local function formatEval(cp)
         tag = (v > 0) and "(decisive advantage for White)" or "(decisive advantage for Black)"
     end
 
-    return string.format("Eval: %+.2f %s", v, tag)
+    return string.format("eval: %+.2f %s", v, tag)
 end
 
 
+
 function Kochess:updateEvalLine()
+    Logger.info("KOCHESS: EvalLine -> %s (cp=%s mate=%s)",
+    tostring(self.eval_line and "ok" or "nil"),
+    tostring(self.last_cp),
+    tostring(self.last_mate)
+)
     if self.eval_line then
-        self.eval_line:setText(formatEval(self.last_cp))
+        self.eval_line:setText(formatEval(self))
         UIManager:setDirty(self, "ui")
     end
 end
@@ -481,14 +511,11 @@ function Kochess:onMoveExecuted(move)
 
     -- 3) Pinta línea (si hay apertura, la mostramos; la eval se añade si existe)
     if self.eval_line then
+        local eval_txt = formatEval(self)
         if opening then
-            if self.last_cp ~= nil then
-                self.eval_line:setText(string.format("%s (%s) · %s", opening.name, opening.eco, formatEval(self.last_cp)))
-            else
-                self.eval_line:setText(string.format("%s (%s)", opening.name, opening.eco))
-            end
+            self.eval_line:setText(string.format("%s (%s) · %s", opening.name, opening.eco or "?", eval_txt))
         else
-            self:updateEvalLine()
+            self.eval_line:setText(eval_txt)
         end
     end
 
@@ -524,6 +551,7 @@ function Kochess:launchUCI()
     -- Si tu wrapper ya asume startpos, basta con moves=...
     self.engine:position({ moves = table.concat(moves, " ") })
 
+    self.eval_turn = self.game.turn()
     
     self.engine:go({
         wtime = self.timer:getRemainingTime(Chess.WHITE) * 1000,
