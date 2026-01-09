@@ -27,7 +27,7 @@ local TextWidget = require("ui/widget/textwidget")
 local InputText = require("ui/widget/inputtext")
 local PathChooser = require("ui/widget/pathchooser")
 local LeftContainer = require("ui/widget/container/leftcontainer")
-
+local ConfirmBox = require("ui/widget/confirmbox")
 
 local Chess = require("chess")
 local ChessBoard = require("board")
@@ -519,7 +519,17 @@ function Kochess:onMoveExecuted(move)
         end
     end
 
-    -- 4) Continúa flujo normal
+    -- 4) Si la SAN tiene '#', es mate: mostrar diálogo y NO seguir
+    local san = tostring(move.san or "")
+    if san:find("#", 1, true) then
+        -- tras aplicar la jugada, el turno ya cambió; el ganador es el que acaba de mover
+        local winner_color = (self.game.turn() == Chess.WHITE) and Chess.BLACK or Chess.WHITE
+        self:showMateDialog(winner_color)
+        UIManager:setDirty(self, "ui")
+        return
+    end
+
+    -- 5) Continúa flujo normal
     self:launchNextMove()
     UIManager:setDirty(self, "ui")
 end
@@ -593,6 +603,34 @@ function Kochess:resetGame()
     if self.engine then self.engine.send("ucinewgame") end
     self:updateTimerDisplay(); self:updatePlayerDisplay(); self.board:updateBoard(); UIManager:setDirty(self, "ui")
 end
+
+function Kochess:showMateDialog(winner_color)
+    local winner = (winner_color == Chess.WHITE) and _("White") or _("Black")
+
+    UIManager:show(ConfirmBox:new{
+        text = string.format(_("Checkmate!\n%s wins."), winner),
+        ok_text = _("Continue"),
+        cancel_text = nil,
+        ok_callback = function()
+            -- Reiniciar estado lógico
+            self.last_cp = nil
+            self.last_mate = nil
+            self.eval_turn = nil
+            self.running = false
+
+            -- Reiniciar juego/reloj/motor
+            self:resetGame()
+
+            -- Texto inicial y evaluación inicial
+            self:updatePgnLogInitialText()
+            self:updateEvalLine()
+
+            -- Si el que empieza es el motor, que mueva
+            self:launchNextMove()
+        end,
+    })
+end
+
 
 function Kochess:createTitleBar()
     return TitleBarWidget:new{ fullscreen=true, title=_("Kochess"), left_icon="home", left_icon_tap_callback=function() self:resetGame() end, close_callback=function() self.timer:stop(); if self.engine then self.engine:stop() end; UIManager:close(self) end }
