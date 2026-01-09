@@ -455,7 +455,7 @@ local function formatEval(self)
 
     local cp = self.last_cp
     if cp == nil then
-        return "eval: --"
+        return ""
     end
 
     local v = (tonumber(cp) or 0) / 100.0
@@ -647,10 +647,6 @@ function Kochess:createStatusBar()
                     self.timer:reset(); self:updatePlayerDisplay(); self:updateTimerDisplay()
                 end
             }:show()
-        end,
-        right_icon="check", right_icon_tap_callback=function()
-            if self.running then self.timer:stop(); self.running=false else self.running=true; self.timer:start(); if self.engine and not self.game.is_human(self.game.turn()) then self:launchUCI() end end
-            self:updateTimerDisplay()
         end
     }
 end
