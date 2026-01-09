@@ -1,138 +1,243 @@
-# Kochess User Manual
+# ♟ Kochess.koplugin  
+**Play real chess on your e-reader — powered by Stockfish**
 
-Kochess is a simple yet functional chess application designed for your device. It allows you to play against a built-in UCI chess engine (Stockfish 11 at the moment), load and save games in PGN format, and review past moves.
+Turn your KOReader device into a focused, distraction-free chessboard.  
+Kochess brings a full UCI chess engine, PGN support, clocks and analysis straight to your e-ink device.
 
----
-
-## Demo
-
-See the demo video in the latest GitHub Release.
-
-
-
-https://github.com/user-attachments/assets/2d4b052f-0c1b-4174-9478-ad99800003a5
-
-
-
-## Getting Started
-
-### Launching Kochess
-
-1.  From the **Main Menu** of your device, navigate to the **Tools** section.
-2.  Select **"Chess Game"** to start Kochess.
-
-Upon launching, a new game will begin automatically with the chess engine initialized. You will see the chessboard, PGN log, and status bars.
+No ads. No cloud. Just chess.
 
 ---
 
-### Installation
+## 🚀 Features
 
-To install Kochess, follow these steps:
-
-1.    Plugin Installation: Copy the Kochess plugin directory into your KOReader installation. The plugin should be located at: `koreader/plugins/kochess.koplugin` (Replace koreader with your base KOReader installation directory).
-2.    The icons will be copied automatically to the folder: `koreader/resources/icons/chess`
-3.    Games: Your saved game files (PGN) can be stored in any convenient location on your device, Default to Games folder in the plugin 
-4.    Engine: Chess engine is compiled and installed at  `koreader/plugins/kochess.koplugin/engines`. Currently only for Kobo & reMarkable
-
----
-
-## Interface Overview
-
-The Kochess interface is designed for clarity and ease of use. It consists of the following main areas:
-
-* **Title Bar (Top):** Displays the application title and general information or quick action buttons (like a menu button).
-* **Chess Board (Middle):** This is where the chess pieces are displayed, and you interact with the game by tapping on squares to make moves.
-* **PGN Log & Toolbar (Below Board):**
-    * **PGN Log:** Shows the move history in Standard Algebraic Notation (SAN), along with game information and engine status.
-    * **Toolbar:** Contains buttons for navigating through moves and managing game files.
-* **Status Bar (Bottom):** Displays current game information, including player timers and who is currently playing (Human or Engine).
-* **Bottom:** Show information about the opening and evaluation of the game
+- ♞ Play against **Stockfish 11** (UCI engine)  
+- ♛ Play against a friend in the same device
+- 📖 Load and save games in **PGN** format  
+- ⏳ Built-in **chess clocks** (time + increment)  
+- 🔁 **Undo / Redo** full game history  
+- 🧠 Shows **opening name** and **engine evaluation**  
+- 👤 Configure **Human vs Engine** per color  
+- 📂 File browser to load your own chess games  
+- ✏️ Supports **comments and headers** from PGN  
+- 🪶 Optimized for **e-ink devices** (Kobo, reMarkable)  
+- ⚡ Works fully **offline**
 
 ---
 
-## Playing a Game
+## 📦 Installation
 
-### Making a Move (Human Player)
+1. Copy the plugin folder to:
+```
+koreader/plugins/kochess.koplugin
+```
 
-Kochess supports touch-based move input:
+2. Icons will be installed automatically into:
 
-1.  **Select a piece:** Tap on the piece you wish to move.
-2.  **Select a destination:** Tap on the square where you want to move the piece.
-3.  The move will be executed, the PGN log will update, and the turn will switch to the next player.
+```
+koreader/resources/icons/chess
+```
+
+3. Restart KOReader.  
+4. Enable Kochess from:
+
+```
+Tools → More tools → Plugin management
+```
+
+---
+
+## ♟ Launching Kochess
+
+From KOReader:
+
+```
+Tools → Chess Game
+```
+
+A new game starts automatically with Stockfish ready.
+
+You will see:
+
+- The **chessboard**  
+- The **PGN move list**  
+- The **clocks and engine status**  
+- The **opening name and evaluation**
+
+---
+
+## 📱 Interface Overview
+
+Kochess is designed for clarity and e-ink readability.  
+The screen is divided into four functional areas:
+
+**Title Bar (Top)**  
+Shows the plugin name and quick access buttons (menu, settings, actions).
+
+**Chess Board (Center)**  
+The main board where all moves are played.  
+Tap pieces and squares to move.
+
+**PGN Log and Toolbar (Below the board)**  
+The left side shows the move list in standard algebraic notation.  
+The right side contains the main control buttons (undo, redo, save, load).
+
+**Status Bar (Bottom)**  
+Displays:
+- Player to move  
+- Remaining time for both sides  
+- Game state (playing, paused, finished)
+
+Below the status bar, Kochess also shows:
+- The detected opening  
+- The engine evaluation of the current position
+
+
+---
+
+## 🕹️ Playing a Game
+
+### Making a Move
+
+1. Tap a piece  
+2. Tap the destination square  
+3. The move is executed and logged  
+4. Stockfish replies when it is its turn  
 
 ### Pawn Promotion
 
-When a pawn reaches the last rank, a **promotion dialog** will appear, prompting you to choose the piece you wish to promote to (Queen, Rook, Bishop, or Knight). Select your desired piece to complete the move.
-
-### Engine's Turn
-
-When it's the engine's turn, the application will automatically calculate and make its move. 
-
-### Game State
-
-The **Status Bar** will show the current player's turn and remaining time:
-* **⤆**: White's turn
-* **⤇**: Black's turn
-* **⤊**: Game is paused or in an initial/reset state.
+When a pawn reaches the last rank, a dialog appears.  
+Choose **Queen, Rook, Bishop or Knight**.
 
 ---
 
-## Game Controls & Features
+## ⏳ Game Clocks
 
-### Timers
+Each side has a real chess clock.
 
-Kochess includes a game timer for both White and Black.
-* The timers start counting down for the active player once the game begins (after the first human move or explicit request hitting the `checkmark` button).
-* The current time for both players is displayed in the **Status Bar**.
+- Time starts after the first move  
+- Supports **time + increment**  
+- Displayed in the **status bar**
 
-### PGN Log
+Status icons:
 
-The **PGN Log** displays the game's moves.
-* **Move History:** Shows the sequence of moves in Standard Algebraic Notation.
-* **Headers:** Displays game information like Event, Date, White player, and Black player, if available from a loaded PGN.
-* **Comments:** If there are comments associated with a move in the PGN, they will be shown.
-* **Scrolling:** The log automatically scrolls to the most recent move.
-
-### Toolbar Buttons
-
-The toolbar, located next to the PGN log, provides several useful functions:
-
-* **Undo Move (`chevron.left` icon):**
-    * **Tap:** Undoes the last single move.
-    * **Hold:** Undoes all moves, rewinding the game to the initial position.
-* **Redo Move (`chevron.right` icon):**
-    * **Tap:** Redoes the next available move in the history.
-    * **Hold:** Redoes all available moves, replaying the game to the current end of the move history.
-* **Save PGN (`bookmark` icon):** Opens a dialog to save the current game state as a PGN (Portable Game Notation) file.
-    * You can choose the **folder** to save in.
-    * You can enter a **filename**. The `.pgn` extension will be added automatically if not provided.
-* **Load PGN (`appbar.filebrowser` icon):** Opens a file browser to load a PGN chess game from your device.
-    * Select a `.pgn` file to load. The current game will be reset, and the loaded game will be displayed from its initial position.
+- ⤆ White to move  
+- ⤇ Black to move  
+- ⤊ Paused or reset  
 
 ---
 
-## Settings
+## 📜 PGN System
 
-While the code snippet doesn't detail a full settings menu, it references a `SettingsWidget`. 
+Kochess is built around real chess files.
 
-Cuirrently it includes options to configure:
+### 💾 Save a Game  
+Tap the **bookmark icon**  
+Choose folder and filename (`.pgn` added automatically)
 
-* **Player type:** Choosing color to be a human or engine player (if available)
-* **Engine Difficulty:** Adjusting the strength of the UCI engine (e.g., Stockfish).
-* **Time Controls:** Modifying the initial time and increment for players.
+### 📂 Load a Game  
+Tap the **file icon**  
+Select any `.pgn` file  
 
----
+Supported:
 
-## License and Acknowledgement
-
-All sources and creation are copyrighted by Victor Fariña and provided under the GPL license 3.0 or above.
-
-The original repository was from Baptiste Fouques ([kochess](https://github.com/bateast/kochess)) but after 5 months of waiting for responses, I modified the coede and make it work.
-
-The Chess game logic module is provided by arizati (https://github.com/arizati/chess.lua).
-
-Icons are derived work from [Colin M.L. Burnett](https://en.wikipedia.org/wiki/User:Cburnett), provided under [GPLv2+](https://www.gnu.org/licenses/gpl-2.0.txt).
+- Move history (SAN)  
+- Headers (Event, Date, White, Black…)  
+- Comments  
+- Variations  
 
 ---
 
-We hope you enjoy playing chess with Kochess! If you encounter any further issues or have suggestions, please open an issue so we can work on it.
+## 🧰 Toolbar
+
+| Button | Action |
+|--------|--------|
+| ⬅ Undo | Tap: undo one move · Hold: rewind to start |
+| ➡ Redo | Tap: redo one move · Hold: go to last |
+| 🔖 Save | Save the current game to PGN |
+| 📂 Load | Load a PGN file |
+
+---
+
+## ⚙️ Settings
+
+Kochess allows full control of the game:
+
+- Who plays **White** and **Black** (Human or Engine)  
+- **Engine strength**  
+- **Initial time**  
+- **Time increment**
+
+Settings are stored per game.
+
+---
+
+## 🧠 Chess Engine
+
+Kochess uses **Stockfish 11** via UCI.
+
+Optimized builds are provided for:
+
+- Kobo  
+- reMarkable  
+
+Installed in:
+
+```
+koreader/plugins/kochess.koplugin/engines
+```
+
+---
+
+## 📁 Game Storage
+
+By default PGN games are saved in:
+
+```
+koreader/plugins/kochess.koplugin/Games
+```
+
+You can use any folder on your device.
+
+---
+
+## 🎬 Demo
+
+See the demo video in the latest GitHub Release:
+
+[**Kochess.4.Koreader.by.Coffmanv2.mp4**](https://github.com/user-attachments/assets/2d4b052f-0c1b-4174-9478-ad99800003a5)
+
+---
+
+## 🤝 Contributing
+
+Pull requests, bug reports and feature ideas are welcome.  
+If you improve UI, engine integration or PGN handling, please contribute.
+
+---
+
+## 📄 License and Credits
+
+**Kochess**  
+© Victor Fariña  
+GPL-3.0 or later  
+
+Based on the original **kochess** by Baptiste Fouques  
+(continued after long inactivity)
+
+Chess logic provided by:  
+https://github.com/arizati/chess.lua  
+
+Icons derived from:  
+Colin M. L. Burnett (GPLv2+)
+
+---
+
+## ♟ Why Kochess?
+
+Because e-readers are perfect for chess.
+
+No glare.  
+No notifications.  
+No distractions.  
+
+Just you, Stockfish and the board.
