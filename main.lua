@@ -82,20 +82,12 @@ local function getEnginePath()
 
     -- KOBO: armv7l
     if Device:isKobo() then
-        candidates = {
-            ENGINES_DIR .. "stockfish",
-        }
+        candidates = { ENGINES_DIR .. "stockfish" }
     elseif Device:isKindle() then
-        candidates = {
-            ENGINES_DIR .. "stockfish_kindle",
-            ENGINES_DIR .. "stockfish_linux_armv7",
-            ENGINES_DIR .. "stockfish_linux_aarch64",
-        }
+        candidates = { ENGINES_DIR .. "stockfish_kindle" }
     else
         -- PC / entorno de pruebas
-        candidates = {
-            ENGINES_DIR .. "stockfish_pc",
-        }
+        candidates = { PLUGIN_PATH .. "dev/engines/stockfish_pc"}
     end
 
     -- 2) Fallback por arquitectura (por si el "tipo de Device" no cuadra)
@@ -247,10 +239,7 @@ function Kochess:initializeEngine()
     end
     Logger.info("KOCHESS: Arrancando Stockfish ..." .. UCI_ENGINE_PATH)
 
-    os.execute("chmod +x " .. UCI_ENGINE_PATH)
-
     -- [CORRECCIÓN] Pasamos "stockfish" como argumento.
-    -- Antes pasábamos {} (vacío), y eso confunde al proceso en Linux.
     self.engine = Uci.UCIEngine.spawn(UCI_ENGINE_PATH, {})
 
     
