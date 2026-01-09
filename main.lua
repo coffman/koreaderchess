@@ -585,6 +585,14 @@ function Kochess:updatePgnLog()
         txt = txt .. " " .. m
     end
     self.pgn_log:setText(txt)
+    
+    -- Fuerza a mostrar el final (si el widget soporta scrollToBottom/scrollTo)
+    if self.pgn_log.scrollToBottom then
+        self.pgn_log:scrollToBottom()
+    elseif self.pgn_log.scrollTo then
+        -- muchos widgets usan scrollTo(y)
+        self.pgn_log:scrollTo(1e9)
+    end
 end
 
 function Kochess:updateTimerDisplay()
